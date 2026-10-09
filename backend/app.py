@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-# Restrict CORS to frontend
-CORS(app, origins=["http://localhost:3000"])
+# Restrict CORS to frontends
+CORS(app, origins=["http://localhost:3000", "http://localhost:5173"])
 
 # Setup logging
 logging.basicConfig(level=logging.ERROR)
