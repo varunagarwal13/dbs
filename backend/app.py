@@ -231,6 +231,147 @@ def remove_cart_item(item_id):
         logger.error(f"DB Error in /cart/remove: {e}")
         return jsonify({'success': False, 'error': 'Internal Server Error'}), 500
 
+@app.route('/checkout', methods=['POST'])
+def checkout():
+    data = request.json or {}
+    customer_id = data.get('customer_id', DEFAULT_CUSTOMER_ID)
+    
+    try:
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                # 1. Get Cart
+                cursor.execute("SELECT Cart_ID FROM Cart WHERE Customer_ID = :1", [customer_id])
+                cart_row = cursor.fetchone()
+                if not cart_row:
+                    return jsonify({'success': False, 'error': 'Cart not found'}), 404
+                cart_id = cart_row[0]
+
+                # 2. Get Cart Items
+                cursor.execute("""
+                    SELECT ci.Cart_Item_ID, ci.Product_ID, ci.Quantity, p.Price, NVL(i.Available_Quantity, 0)
+                    FROM Cart_Item ci
+                    JOIN Product p ON ci.Product_ID = p.Product_ID
+                    LEFT JOIN Inventory i ON ci.Product_ID = i.Product_ID
+                    WHERE ci.Cart_ID = :1 FOR UPDATE
+                """, [cart_id])
+                items = cursor.fetchall()
+
+                if not items:
+                    return jsonify({'success': False, 'error': 'Cart is empty'}), 400
+
+                total_amount = 0
+
+                # 3. Verify Stock
+                for item in items:
+                    if item[2] > item[4]:
+                        connection.rollback()
+                        return jsonify({'success': False, 'error': f'Not enough stock for product ID {item[1]}'}), 400
+                    total_amount += (item[3] * item[2])
+
+                # 4. Create Order_Tab
+                order_id_var = cursor.var(oracledb.NUMBER)
+                cursor.execute("""
+                    INSERT INTO Order_Tab (Customer_ID, Order_Status)
+                    VALUES (:1, 'PROCESSING')
+                    RETURNING Order_ID INTO :2
+                """, [customer_id, order_id_var])
+                order_id = int(order_id_var.getvalue()[0])
+
+                # 5. Insert Order_Items & Update Inventory
+                for item in items:
+                    cursor.execute("""
+                        INSERT INTO Order_Item (Order_ID, Product_ID, Quantity, Unit_Price)
+                        VALUES (:1, :2, :3, :4)
+                    """, [order_id, item[1], item[2], item[3]])
+                    
+                    cursor.execute("""
+                        UPDATE Inventory SET Available_Quantity = Available_Quantity - :1
+                        WHERE Product_ID = :2
+                    """, [item[2], item[1]])
+
+                # 6. Create Payment
+                cursor.execute("""
+                    INSERT INTO Payment (Order_ID, Payment_mode, Payment_Status, Amount)
+                    VALUES (:1, 'MONO Test Wallet', 'COMPLETED', :2)
+                """, [order_id, total_amount])
+
+                # 7. Clear Cart_Item
+                cursor.execute("DELETE FROM Cart_Item WHERE Cart_ID = :1", [cart_id])
+
+                connection.commit()
+                return jsonify({'success': True, 'order_id': order_id, 'total_amount': total_amount}), 201
+
+    except Exception as e:
+        if str(e) == "Database pool not initialized":
+            return jsonify({'success': False, 'error': 'Service Unavailable'}), 503
+        logger.error(f"DB Error in /checkout: {e}")
+        return jsonify({'success': False, 'error': f'Internal Server Error: {str(e)}'}), 500
+
+@app.route('/orders', methods=['GET'])
+def get_orders():
+    customer_id = request.args.get('customer_id', DEFAULT_CUSTOMER_ID)
+    try:
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT o.Order_ID, o.Order_Date, o.Order_Status, NVL(p.Amount, 0) as Total_Amount
+                    FROM Order_Tab o
+                    LEFT JOIN Payment p ON o.Order_ID = p.Order_ID
+                    WHERE o.Customer_ID = :1
+                    ORDER BY o.Order_Date DESC
+                """, [customer_id])
+                columns = [col[0].lower() for col in cursor.description]
+                orders = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                return jsonify({'success': True, 'data': orders}), 200
+    except Exception as e:
+        if str(e) == "Database pool not initialized":
+            return jsonify({'success': False, 'error': 'Service Unavailable'}), 503
+        logger.error(f"DB Error in /orders: {e}")
+        return jsonify({'success': False, 'error': 'Internal Server Error'}), 500
+
+@app.route('/orders/<int:order_id>', methods=['GET'])
+def get_order_details(order_id):
+    customer_id = request.args.get('customer_id', DEFAULT_CUSTOMER_ID)
+    try:
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT o.Order_ID, o.Order_Date, o.Order_Status, NVL(p.Amount, 0) as Total_Amount, p.Payment_mode
+                    FROM Order_Tab o
+                    LEFT JOIN Payment p ON o.Order_ID = p.Order_ID
+                    WHERE o.Order_ID = :1 AND o.Customer_ID = :2
+                """, [order_id, customer_id])
+                order_row = cursor.fetchone()
+                
+                if not order_row:
+                    return jsonify({'success': False, 'error': 'Order not found'}), 404
+                    
+                order = {
+                    'order_id': order_row[0],
+                    'order_date': order_row[1],
+                    'order_status': order_row[2],
+                    'total_amount': order_row[3],
+                    'payment_mode': order_row[4],
+                    'items': []
+                }
+                
+                cursor.execute("""
+                    SELECT oi.Product_ID, p.Product_Name, oi.Quantity, oi.Unit_Price
+                    FROM Order_Item oi
+                    JOIN Product p ON oi.Product_ID = p.Product_ID
+                    WHERE oi.Order_ID = :1
+                """, [order_id])
+                columns = [col[0].lower() for col in cursor.description]
+                items = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                order['items'] = items
+                
+                return jsonify({'success': True, 'data': order}), 200
+    except Exception as e:
+        if str(e) == "Database pool not initialized":
+            return jsonify({'success': False, 'error': 'Service Unavailable'}), 503
+        logger.error(f"DB Error in /orders/<id>: {e}")
+        return jsonify({'success': False, 'error': 'Internal Server Error'}), 500
+
 if __name__ == '__main__':
     init_db_pool()
     # Debug=True is OK for local demo, but we should not expose to 0.0.0.0 safely
