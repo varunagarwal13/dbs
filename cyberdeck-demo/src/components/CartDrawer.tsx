@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Product } from "../data/products";
 
 export interface CartItem {
@@ -37,10 +37,21 @@ interface CartDrawerProps {
 export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen, onClose, cart, onRemoveItem, onUpdateQuantity, onSelectProduct,
 }) => {
+  const [isClosing, setIsClosing] = useState(false);
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const totalItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  useEffect(() => {
+    if (isOpen) setIsClosing(false);
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  const requestClose = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    window.setTimeout(onClose, 420);
+  };
 
   return (
     <div style={{
@@ -50,13 +61,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     }}>
       {/* backdrop */}
       <div
-        onClick={onClose}
+        onClick={requestClose}
         style={{
           position: "absolute", inset: 0,
           background: "rgba(5,7,10,.78)",
           backdropFilter: "blur(6px)",
           WebkitBackdropFilter: "blur(6px)",
-          animation: "cart-backdrop-in .35s ease-out",
+          animation: isClosing ? "cart-backdrop-out .4s ease-in forwards" : "cart-backdrop-in .35s ease-out",
         }}
       />
 
@@ -66,7 +77,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         backgroundColor: T.ink2,
         borderLeft: `1px solid ${T.lineSoft}`,
         display: "flex", flexDirection: "column", zIndex: 151,
-        animation: "cart-slide-in .45s cubic-bezier(.16,1,.3,1)",
+        animation: isClosing ? "cart-slide-out .4s cubic-bezier(.7,0,.84,0) forwards" : "cart-slide-in .45s cubic-bezier(.16,1,.3,1)",
       }}>
         {/* header */}
         <div style={{
@@ -87,7 +98,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               Your Selection <span style={{ color: T.bone }}>({totalItemCount})</span>
             </h2>
           </div>
-          <button onClick={onClose} style={{
+          <button onClick={requestClose} style={{
             width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", color: T.bone, fontSize: 16,
             border: `1px solid ${T.lineSoft}`, borderRadius: "50%",
@@ -259,7 +270,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
           {/* continue shopping */}
           <button
-            onClick={onClose}
+            onClick={requestClose}
             style={{
               width: "100%", display: "flex", justifyContent: "center", alignItems: "center", gap: 8,
               marginTop: 12, padding: "12px 0",
@@ -281,9 +292,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           from { transform: translate3d(100%,0,0); }
           to   { transform: translate3d(0,0,0); }
         }
+        @keyframes cart-slide-out {
+          from { transform: translate3d(0,0,0); }
+          to   { transform: translate3d(100%,0,0); }
+        }
         @keyframes cart-backdrop-in {
           from { opacity: 0; }
           to   { opacity: 1; }
+        }
+        @keyframes cart-backdrop-out {
+          from { opacity: 1; }
+          to   { opacity: 0; }
         }
         @keyframes toast-in {
           from { opacity: 0; transform: translate3d(0,12px,0); }

@@ -9,6 +9,7 @@ export interface Product {
   subtitle: string;
   description: string;
   image: string;
+  images?: string[];
   finishes: { name: string; hex: string }[];
   optionsName?: string;
   options?: string[];
@@ -28,7 +29,11 @@ export const PRODUCTS: Record<string, Product> = {
     badge: "Flagship Edition",
     subtitle: "75% CNC Aerospace Aluminum • Chamfered Brass Weight • Custom Gasket Mount",
     description: "Precision-milled from a single block of 6063 aerospace aluminum, the Axis 75 combines architectural minimalism with acoustic resonance. Hand-lubed linear switches sit upon flexible leaf-spring gaskets, accompanied by an exposed chamfered brass bottom weight tuned for a deep, muted marble sound signature.",
-    image: "/landing-pages/secret-pathways-assets/generated/keyboard_collection.jpg?v=2",
+    image: "/images/keyboard/keyboard_1.jpg",
+    images: [
+      "/images/keyboard/keyboard_1.jpg",
+      "/images/keyboard/keyboard_2.jpg"
+    ],
     finishes: [
       { name: "Midnight Charcoal & Crimson", hex: "#1a1618" },
       { name: "Obsidian Black", hex: "#0b0507" },
@@ -63,7 +68,14 @@ export const PRODUCTS: Record<string, Product> = {
     badge: "New Release",
     subtitle: "Ultra-Lightweight Magnesium Unibody • Crimson PTFE Skates • 8K Polling",
     description: "Designed for frictionless fluidity. The Arc features an exoskeleton sculpted from magnesium alloy, paired with zero-friction crimson PTFE ceramic skates and silent optical switches rated for 90 million clicks.",
-    image: "/landing-pages/secret-pathways-assets/generated/mouse.jpg",
+    image: "/images/mouse/mouse_4.jpg",
+    images: [
+      "/images/mouse/mouse_1.jpg",
+      "/images/mouse/mouse_2.jpg",
+      "/images/mouse/mouse_3.jpg",
+      "/images/mouse/mouse_4.jpg",
+      "/images/mouse/mouse_5.jpg"
+    ],
     finishes: [
       { name: "Midnight Magnesium", hex: "#1f1c20" },
       { name: "Crimson Blossom Accent", hex: "#7A1F2E" },

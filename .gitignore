@@ -30,3 +30,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# Tool metadata & caches
+.claude/
+.mcp.json
+graphify-out/
+

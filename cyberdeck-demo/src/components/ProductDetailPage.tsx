@@ -36,6 +36,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   onOpenCart,
   totalItemCount = 0,
 }) => {
+  const galleryImages = (product.images && product.images.length > 0) ? product.images : [product.image];
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isHoveringImage, setIsHoveringImage] = useState(false);
   const [selectedFinish, setSelectedFinish] = useState(product.finishes[0]?.name || "");
   const [selectedOption, setSelectedOption] = useState(product.options?.[0] || "");
   const [quantity, setQuantity] = useState(1);
@@ -44,8 +47,19 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     setSelectedFinish(product.finishes[0]?.name || "");
     setSelectedOption(product.options?.[0] || "");
     setQuantity(1);
+    setActiveImageIndex(0);
+    setIsHoveringImage(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [product.id]);
+
+  const handleImageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (galleryImages.length <= 1) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const ratio = Math.max(0, Math.min(0.9999, x / rect.width));
+    const newIndex = Math.floor(ratio * galleryImages.length);
+    setActiveImageIndex(newIndex);
+  };
 
   const handleAddClick = () => {
     if (onAddToCart) {
@@ -175,25 +189,47 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         }}>
           {/* image */}
           <div style={{ position: "sticky", top: 100 }}>
-            <div style={{
-              position: "relative", overflow: "hidden",
-              outline: `1px solid ${T.lineSoft}`, outlineOffset: -1,
-              transition: `outline-color .5s ${T.ease}`,
-            }}
-              onMouseEnter={e => (e.currentTarget.style.outlineColor = "rgba(223,231,224,.30)")}
-              onMouseLeave={e => (e.currentTarget.style.outlineColor = T.lineSoft)}
-            >
-              <img src={product.image} alt={product.name} style={{
-                width: "100%", aspectRatio: "4/3", objectFit: "cover", display: "block",
-                filter: "saturate(.92) brightness(.96)",
-                transition: `transform 1.2s ${T.easeOut}`,
+            <div
+              style={{
+                position: "relative",
+                overflow: "hidden",
+                outline: `1px solid ${isHoveringImage ? "rgba(224,35,28,.4)" : T.lineSoft}`,
+                outlineOffset: -1,
+                transition: `outline-color .5s ${T.ease}`,
+                cursor: galleryImages.length > 1 ? "ew-resize" : "default",
+                userSelect: "none",
               }}
-                onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.03)")}
-                onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
-              />
+              onMouseMove={handleImageMouseMove}
+              onMouseEnter={() => setIsHoveringImage(true)}
+              onMouseLeave={() => setIsHoveringImage(false)}
+            >
+              {/* Stacked Images for instantaneous scrubbing without flicker */}
+              {galleryImages.map((src, i) => (
+                <img
+                  key={src}
+                  src={src}
+                  alt={`${product.name} view ${i + 1}`}
+                  style={{
+                    position: i === 0 ? "relative" : "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    aspectRatio: "4/3",
+                    objectFit: "cover",
+                    display: "block",
+                    filter: "saturate(.95) brightness(.98)",
+                    opacity: i === activeImageIndex ? 1 : 0,
+                    transform: isHoveringImage ? "scale(1.025)" : "scale(1)",
+                    transition: "opacity .08s ease, transform .7s cubic-bezier(.16,1,.3,1)",
+                    pointerEvents: "none",
+                  }}
+                />
+              ))}
+
               <div style={{
-                position: "absolute", bottom: 16, left: 16, right: 16,
+                position: "absolute", bottom: 16, left: 16, right: 16, zIndex: 4,
                 display: "flex", justifyContent: "space-between", alignItems: "flex-end",
+                pointerEvents: "none",
               }}>
                 <span style={{
                   fontSize: 10, fontWeight: 500, letterSpacing: ".22em", textTransform: "uppercase" as const,
@@ -211,6 +247,53 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Thumbnails strip for multi-image products */}
+            {galleryImages.length > 1 && (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${galleryImages.length}, 1fr)`,
+                gap: 6,
+                marginTop: 8,
+              }}>
+                {galleryImages.map((src, i) => (
+                  <button
+                    key={src}
+                    onClick={() => setActiveImageIndex(i)}
+                    onMouseEnter={() => setActiveImageIndex(i)}
+                    style={{
+                      position: "relative",
+                      aspectRatio: "16/10",
+                      padding: 0,
+                      border: `1px solid ${i === activeImageIndex ? T.vermilion : T.lineSoft}`,
+                      background: T.ink2,
+                      cursor: "pointer",
+                      overflow: "hidden",
+                      transition: `border-color .3s ${T.ease}, transform .3s ${T.ease}`,
+                      transform: i === activeImageIndex ? "translateY(-1px)" : "none",
+                    }}
+                  >
+                    <img
+                      src={src}
+                      alt={`Thumbnail ${i + 1}`}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        filter: i === activeImageIndex ? "brightness(1) saturate(1)" : "brightness(.65) saturate(.8)",
+                        transition: "filter .3s ease",
+                      }}
+                    />
+                    {i === activeImageIndex && (
+                      <div style={{
+                        position: "absolute", bottom: 0, left: 0, right: 0, height: 2,
+                        backgroundColor: T.vermilion,
+                      }} />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* trust strip */}
             <div style={{
